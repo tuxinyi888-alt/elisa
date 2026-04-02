@@ -1,2 +1,2 @@
 # elisa
-data analysis and visulazition of snadwich ELISA for cytokines
+data analysis and visulazition of sandwich ELISA for cytokines
