@@ -164,3 +164,77 @@ for (s in sheets) {
 }
 
 cat("\nAll plots saved in the 'plots/' directory!\n")
+
+# =============================================================================
+# 2-Way ANOVA Analysis
+# Factor 1: Carprofen concentration (C0, C1, C10, C100)
+# Factor 2: Stimulus concentration (LPS or BCG level)
+# Response: Cytokine concentration (pg/ml)
+# Run separately for each cytokine x stimulus combination (6 total)
+# =============================================================================
+
+cat("\n========================================\n")
+cat("2-Way ANOVA Analysis\n")
+cat("========================================\n\n")
+
+# Open a text file to save ANOVA results
+sink("ANOVA_results.txt")
+cat("2-Way ANOVA Results for ELISA Cytokine Data\n")
+cat("=============================================\n")
+cat("Factor 1: Carprofen concentration (C0, C1, C10, C100)\n")
+cat("Factor 2: Stimulus concentration (LPS or BCG level)\n")
+cat("Response: Cytokine concentration (pg/ml)\n")
+cat("Date:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n\n")
+sink()
+
+for (s in sheets) {
+  df <- read_excel("ELISA.xlsx", sheet = s$name)
+  colnames(df) <- c("Donor", "Carprofen", "Stimulus", "Stim_Conc", s$col)
+
+  for (stim in stimuli) {
+    stim_data <- df %>% filter(Stimulus == stim)
+
+    # Replace NA with 0 (below detection limit)
+    stim_data[[s$col]][is.na(stim_data[[s$col]])] <- 0
+
+    # Convert to factors
+    stim_data$Carprofen <- factor(stim_data$Carprofen, levels = carp_levels)
+    if (stim == "LPS") {
+      stim_data$Stim_Conc <- factor(stim_data$Stim_Conc, levels = lps_levels)
+    } else {
+      stim_data$Stim_Conc <- factor(stim_data$Stim_Conc, levels = bcg_levels)
+    }
+
+    # Build formula
+    formula_str <- as.formula(paste0(s$col, " ~ Carprofen * Stim_Conc"))
+
+    # Run 2-way ANOVA
+    anova_model <- aov(formula_str, data = stim_data)
+    anova_result <- summary(anova_model)
+
+    # Print to console
+    header <- paste0(s$label, " - ", stim, " + Carprofen")
+    cat("----------------------------------------\n")
+    cat(header, "\n")
+    cat("----------------------------------------\n")
+    print(anova_result)
+    cat("\n")
+
+    # Save to file
+    sink("ANOVA_results.txt", append = TRUE)
+    cat("========================================\n")
+    cat(header, "\n")
+    cat("========================================\n\n")
+    print(anova_result)
+
+    # Post-hoc Tukey HSD test
+    cat("\n--- Tukey HSD Post-hoc Test ---\n\n")
+    tukey_result <- TukeyHSD(anova_model)
+    print(tukey_result)
+    cat("\n\n")
+    sink()
+  }
+}
+
+cat("\nANOVA results saved to 'ANOVA_results.txt'\n")
+cat("Done!\n")
