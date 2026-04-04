@@ -14,6 +14,18 @@ These findings suggest that carprofen has dual HDT potential — immunomodulator
 
 ---
 
+# Summary
+
+Tuberculosis (TB) remains a leading cause of infectious disease mortality worldwide. Standard antibiotic therapy targets the pathogen but does not address the dysregulated host immune response that contributes to tissue destruction and disease progression. Host-directed therapy (HDT) aims to modulate immune pathways to enhance antimicrobial activity while limiting immunopathology. Nonsteroidal anti-inflammatory drugs (NSAIDs) with direct bactericidal activity against mycobacteria have emerged as promising HDT candidates, but their specific effects on human macrophage immune responses and intracellular mycobacterial growth control remain poorly defined.
+
+This study investigated the immunomodulatory and antimycobacterial effects of carprofen, a microbicidal NSAID, using human monocyte-derived macrophages (MDMs). Cytokine production (IL-1β, IL-6, TNF-α) was measured by ELISA following 6-hour stimulation with lipopolysaccharide (LPS) or *Mycobacterium bovis* bacillus Calmette–Guérin (BCG) in the presence of carprofen (0, 1, 10, 100 µg/mL). BCG growth was assessed by fluorescence-based flow cytometry over 7 days under two conditions: transient carprofen exposure (4 hours only) and sustained exposure (continuous for 7 days).
+
+Carprofen did not significantly alter IL-6 or TNF-α production in response to either LPS or BCG. However, a significant synergistic interaction between carprofen and LPS was observed for IL-1β (p = 0.015), with the highest concentration potentiating IL-1β release approximately 4.6-fold. BCG-induced cytokine responses were markedly weaker than LPS and were unaffected by carprofen. In the BCG growth assay, transient carprofen exposure produced dose-dependent inhibition of extracellular BCG replication but paradoxically increased intracellular bacterial growth. In contrast, sustained carprofen treatment effectively suppressed both extracellular and intracellular BCG replication.
+
+These results demonstrate that carprofen selectively modulates inflammasome-dependent IL-1β production and exerts concentration- and duration-dependent antimycobacterial effects, with sustained drug exposure being essential for intracellular bacterial control. These findings support further investigation of carprofen as an adjunctive HDT agent for TB.
+
+---
+
 # Introduction
 
 Tuberculosis (TB) is a chronic infectious disease caused by *Mycobacterium tuberculosis* (Mtb), most commonly affecting the lungs. It spreads through airborne droplets released when individuals with pulmonary TB cough, speak, or sneeze. According to the World Health Organization (2024), TB caused an estimated 10.7 million new cases and 1.23 million deaths in 2024, making it one of the leading infectious causes of mortality. Drug-susceptible TB is treated with six months of antibiotics, beginning with two months of isoniazid, rifampicin, pyrazinamide and ethambutol, followed by four months of isoniazid and rifampicin [1]. Effective treatment requires good adherence and monitoring for toxicity, and cases involving drug resistance often require longer regimens that include second-line drugs with higher toxicity. However, Mtb has a lipid-rich cell wall that limits antibiotic permeability and can persist for long periods within macrophages, allowing the infection to continue despite treatment [2]. In addition, the large global population with latent infection, together with the lengthy treatment course and increasing levels of drug resistance, indicates that antimicrobial therapy alone is insufficient for full disease control [3].
