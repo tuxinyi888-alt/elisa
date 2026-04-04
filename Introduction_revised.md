@@ -68,3 +68,46 @@ Carprofen did not significantly alter IL-6 or TNF-α production in response to e
 ## BCG growth findings
 
 Taken together, these data demonstrate that carprofen exerts concentration-dependent inhibitory effects on BCG growth. Transient carprofen exposure (4 hours) was sufficient to inhibit extracellular BCG replication, particularly at MOI B10, but did not restrict intracellular growth. In contrast, sustained carprofen treatment over 7 days was necessary to suppress intracellular BCG replication. The differential response between extracellular and intracellular compartments likely reflects differences in drug accessibility: carprofen may readily access extracellular bacteria even during brief exposure, whereas sustained intracellular drug concentrations are required to inhibit phagosomal BCG. These results highlight the importance of continuous drug exposure for effective control of intracellular mycobacterial infection.
+
+# Materials and Methods
+
+## Isolation of human PBMCs and macrophage differentiation
+
+Peripheral blood samples (120 mL) were obtained from healthy adult donors under UCL ethical approval (UCL Ethics Project ID: 22589/001). Blood was collected into sodium heparin vacuette tubes (Greiner, Cat# 455051) and pro-coagulant tubes (BD Vacutainer SST II Advance, Cat# 367958) for serum separation. Peripheral blood mononuclear cells (PBMCs) were isolated by density-gradient centrifugation using Ficoll-Paque PLUS (Cytiva, Cat# 17144003) at 800 × g for 20 minutes at room temperature. PBMCs were resuspended in complete RPMI-1640 (RPMI-1640 with L-glutamine; Gibco, Cat# 21875-034) supplemented with 10% heat-inactivated foetal bovine serum (FBS; Sigma-Aldrich, Cat# 12103C-100ML) and 100 U/mL penicillin–100 µg/mL streptomycin (Gibco, Cat# 15070-063).
+
+Monocytes were enriched by plastic adherence. PBMCs were seeded at a density of 5 × 10⁶ cells/mL in macrophage adhesion/maintenance medium (RPMI-1640 supplemented with 5% heat-inactivated type AB human serum; Merck, Cat# H4522-100ML) and incubated for 2 hours at 37 °C, 5% CO₂. Non-adherent cells were removed and adherent monocytes were washed three times with warm DPBS (Gibco, Cat# 14190-094). Monocytes were then differentiated into monocyte-derived macrophages (MDMs) in RPMI-1640 containing 10% heat-inactivated autologous serum, 100 U/mL penicillin–100 µg/mL streptomycin, and 20 ng/mL recombinant human M-CSF (R&D Systems, Cat# 216-MC-025) for 6 days. On day 3, non-adherent cells were removed, wells were washed with warm DPBS, and fresh adhesion/maintenance medium was added. On day 6, medium was replaced with fresh adhesion/maintenance medium. Tissue culture plates used were 24-well plates (Corning, Cat# 3595) or 96-well glass-bottom plates as appropriate.
+
+## BCG culture and preparation
+
+*Mycobacterium bovis* bacillus Calmette–Guérin (BCG) expressing the fluorescent reporter dsRED was resuscitated from frozen mid-log phase stocks stored in 40% glycerol at −80 °C. Bacteria were cultured in Middlebrook 7H9 broth (BD Difco, Cat# 271310) supplemented with 10% Middlebrook ADC Enrichment (BD BBL, Cat# 211887), 0.2% glycerol (Sigma-Aldrich, Cat# G2025-500ML), 0.05% Tween-80 (Sigma-Aldrich, Cat# P1754-500ML), and 50 µg/mL hygromycin B (Invitrogen, Cat# 10687010) at 37 °C with shaking at 180 rpm. Cultures were passaged by 1:5 dilution and grown to mid-logarithmic phase (OD₆₀₀ ≈ 0.4–0.6), as measured using a spectrophotometer (Implen GmbH, model OD600). Bacteria were used within five passages from the original stock to avoid genetic drift.
+
+Before infection, 2 mL of logarithmic-phase BCG culture was centrifuged at 2000 × g for 1 minute, washed twice with PBS containing 0.05% Tween-80 (PBS-T; PBS tablets, Gibco, Cat# 18912-014), and resuspended in antibiotic-free MDM adhesion/maintenance medium (RPMI-1640 with 10% heat-inactivated type AB human serum) at the desired concentration. Bacterial concentration was estimated as 1 × OD₆₀₀ × 10⁸ CFU/mL.
+
+## Infection of MDMs with BCG
+
+Differentiated MDMs (day 7) were infected with BCG at multiplicities of infection (MOI) of 1, 10, or 100. Medium was aspirated and replaced with the BCG inoculum. Plates were incubated for 4 hours at 37 °C to allow phagocytosis. Following infection, extracellular bacteria were removed by washing three times with warm DPBS, and fresh antibiotic-free MDM adhesion/maintenance medium was added.
+
+## Carprofen treatment
+
+Carprofen (stock 50 mg/mL in DMSO; **[manufacturer and Cat# to be confirmed]**) was serially diluted in antibiotic-free MDM adhesion/maintenance medium to achieve final concentrations of 0, 1, 10, and 100 µg/mL (corresponding to 1:50,000, 1:5,000, and 1:500 dilutions of the stock solution, respectively). Vehicle controls received equivalent volumes of DMSO. Carprofen was added to the culture medium after the 4-hour infection and wash step.
+
+## Cytokine quantification by ELISA
+
+To assess the effects of carprofen on macrophage innate immune responses, MDMs were stimulated with either lipopolysaccharide (LPS; from *Escherichia coli* O111:B4; Sigma-Aldrich, **[Cat# to be confirmed]**) at 0, 1, 10, and 100 ng/mL, or infected with BCG at MOI 0, 1, 10, and 100, in the presence of carprofen (0, 1, 10, and 100 µg/mL). Stimulation/infection and carprofen treatment were applied simultaneously. Culture supernatants were collected at 6 hours post-stimulation/infection and stored at −80 °C until analysis.
+
+IL-1β, IL-6, and TNF-α concentrations were measured using sandwich ELISA kits (Invitrogen, Thermo Fisher Scientific; **[Cat# to be confirmed for each cytokine]**) according to the manufacturer's instructions. Absorbance was read on a microplate reader (**[model and manufacturer to be confirmed]**).
+
+## BCG growth assay by flow cytometry
+
+To evaluate the effect of carprofen on mycobacterial growth, a 7-day BCG growth assay was performed. MDMs were infected with BCG-dsRED at MOI 1, 10, or 100 for 4 hours, washed, and then assigned to one of two treatment conditions:
+
+- **Transient exposure**: Carprofen (0, 1, 10, or 100 µg/mL) was added after the 4-hour infection and wash step. After an additional 4 hours of incubation (i.e. 4 hours of carprofen exposure), medium was replaced with drug-free antibiotic-free MDM adhesion/maintenance medium, and cells were cultured for the remaining 7 days without carprofen.
+- **Sustained exposure**: Carprofen (0, 1, 10, or 100 µg/mL) was added after the 4-hour infection and wash step, and maintained continuously in the culture medium for the full 7-day assay period.
+
+At 4 hours post-infection (baseline) and at the 7-day endpoint, both extracellular (EC) and intracellular (IC) bacterial fractions were harvested. The EC fraction was collected by aspirating and gently resuspending the culture supernatant. Adherent MDMs were then lysed with 200 µL sterile distilled water containing 0.05% Tween-80 for 6 minutes, and the IC fraction was collected by scraping. Both EC and IC fractions were fixed with an equal volume of 8% paraformaldehyde (PFA; prepared from paraformaldehyde powder, Sigma-Aldrich, Cat# P6148-1KG) for 15 minutes, centrifuged at 500 × g for 2 minutes, and resuspended in 350 µL FACS buffer.
+
+Samples were acquired on a BD LSRFortessa flow cytometer (5-laser SORP configuration). Absolute bacterial counts were determined using CountBright Absolute Counting Beads (Invitrogen, Cat# C36950; 25 µL per sample). The dsRED fluorescent signal was detected in the PE channel (561 nm excitation). At least 1,000 bead events were acquired per sample to ensure statistical accuracy. BCG growth was expressed as fold change in total integrated fluorescence (event count × mean fluorescence intensity), normalised to the number of counting bead events, relative to the 4-hour baseline.
+
+## Statistical analysis
+
+All statistical analyses were performed using RStudio. Cytokine data were analysed by two-way ANOVA with carprofen concentration and stimulus concentration (LPS or BCG MOI) as factors. BCG growth data were compared descriptively across treatment conditions. Experiments were performed using MDMs from three (BCG growth assay) or four (ELISA) independent healthy donors. Data are presented as mean ± SEM.
