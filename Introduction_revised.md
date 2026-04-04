@@ -1,3 +1,19 @@
+# Capsule Summary
+
+**What was already known on this topic?**
+Certain NSAIDs, including carprofen, exhibit direct bactericidal activity against mycobacteria *in vitro* and have been proposed as host-directed therapy (HDT) candidates for tuberculosis, but their specific effects on human macrophage immune responses and intracellular mycobacterial growth control remain poorly characterised.
+
+**What question did this study address?**
+This study investigated whether carprofen modulates pro-inflammatory cytokine production (IL-1β, IL-6, TNF-α) in human monocyte-derived macrophages stimulated with LPS or BCG, and whether transient versus sustained carprofen exposure differentially affects extracellular and intracellular BCG growth.
+
+**What does this study add to our knowledge?**
+Carprofen selectively potentiates LPS-induced IL-1β production through a synergistic interaction without significantly altering IL-6 or TNF-α, and while transient carprofen exposure is sufficient to inhibit extracellular BCG replication, sustained drug exposure over 7 days is required to suppress intracellular mycobacterial growth within macrophages.
+
+**What are the implications of this study?**
+These findings suggest that carprofen has dual HDT potential — immunomodulatory and antimycobacterial — but highlight that clinical dosing strategies must achieve sustained intracellular drug concentrations to effectively control the intracellular mycobacterial reservoir that drives tuberculosis pathogenesis.
+
+---
+
 # Introduction
 
 Tuberculosis (TB) is a chronic infectious disease caused by *Mycobacterium tuberculosis* (Mtb), most commonly affecting the lungs. It spreads through airborne droplets released when individuals with pulmonary TB cough, speak, or sneeze. According to the World Health Organization (2024), TB caused an estimated 10.7 million new cases and 1.23 million deaths in 2024, making it one of the leading infectious causes of mortality. Drug-susceptible TB is treated with six months of antibiotics, beginning with two months of isoniazid, rifampicin, pyrazinamide and ethambutol, followed by four months of isoniazid and rifampicin [1]. Effective treatment requires good adherence and monitoring for toxicity, and cases involving drug resistance often require longer regimens that include second-line drugs with higher toxicity. However, Mtb has a lipid-rich cell wall that limits antibiotic permeability and can persist for long periods within macrophages, allowing the infection to continue despite treatment [2]. In addition, the large global population with latent infection, together with the lengthy treatment course and increasing levels of drug resistance, indicates that antimicrobial therapy alone is insufficient for full disease control [3].
