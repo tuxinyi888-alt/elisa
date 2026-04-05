@@ -231,7 +231,7 @@ def make_elisa_figure(stimulus, palette, dose_title, dose_levels,
     donors      = ['D1', 'D2', 'D3', 'D4']
     donor_titles= ['Donor 1', 'Donor 2', 'Donor 3', 'Donor 4']
     pan_let_d   = 'ABCDEFGHIJKL'   # 12 letters for 3×4
-    pan_let_a   = 'ABC'             # 3 letters for average row
+    pan_let_a   = 'DEF'             # 3 letters for average row
 
     # ── pre-compute ANOVA for each cytokine ──────────────────────────────────
     anova_txts = {}
@@ -309,9 +309,9 @@ def make_elisa_figure(stimulus, palette, dose_title, dose_levels,
             show_ylabel  = True,
             title        = cyt_label.split(' ')[0],
         )
-        ax.text(-0.20, 1.07, pan_let_a[ci],
+        ax.text(0.0, 1.07, pan_let_a[ci],
                 transform=ax.transAxes,
-                fontsize=10, fontweight='bold', va='top')
+                fontsize=10, fontweight='bold', va='top', ha='left')
         # ANOVA annotation below panel, outside axes
         ax.text(0.5, -0.30, anova_txts[col_id],
                 transform=ax.transAxes, fontsize=5.5, color='#444444',
