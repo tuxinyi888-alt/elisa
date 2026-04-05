@@ -125,50 +125,83 @@ X_SMOOTH = np.logspace(np.log10(0.45), np.log10(125), 200)
 X_BREAKS = [0.5, 1, 10, 100]
 X_LABELS = ['0', '1', '10', '100']
 
+def semilog_fit(xs, ys, x_range):
+    """Fit y ~ log10(x) in log-x / linear-y space. Returns (y_fit, y_lo, y_hi)."""
+    xs, ys = np.asarray(xs, float), np.asarray(ys, float)
+    mask = (xs > 0) & np.isfinite(ys) & (ys >= 0)
+    if mask.sum() < 4:
+        return None
+    lx, ly = np.log10(xs[mask]), ys[mask]
+    n = len(lx)
+    sl, ic, *_ = stats.linregress(lx, ly)
+    ly_hat  = ic + sl * lx
+    se_res  = np.sqrt(np.sum((ly - ly_hat)**2) / (n - 2))
+    lx_pred = np.log10(x_range)
+    y_pred  = ic + sl * lx_pred
+    lx_mean = lx.mean()
+    ss_x    = np.sum((lx - lx_mean)**2)
+    t95     = stats.t.ppf(0.975, n - 2)
+    se_mean = se_res * np.sqrt(1/n + (lx_pred - lx_mean)**2 / ss_x)
+    return y_pred, y_pred - t95*se_mean, y_pred + t95*se_mean
+
 def draw_elisa_panel(ax, df_panel, cytokine_col, cyt_label, palette,
-                     dose_levels, anova_txt='',
+                     dose_levels, anova_txt='', log_y=True,
                      show_xlabel=True, show_ylabel=True, title=''):
-    """Draw dose-response lines for one panel (one donor or average)."""
-    all_vals = []  # track actual values to set y-limits from data, not fit
+    """Draw dose-response lines (log-x; log-y or linear-y depending on log_y)."""
+    all_vals = []
 
     for dose in dose_levels:
         d   = df_panel[df_panel['stim_num'] == dose].copy()
         col = palette[dose]
 
         good = d.dropna(subset=['value'])
-        good = good[good['value'] > 0]
+        good = good[good['value'] > (0 if log_y else -np.inf)]
+        if log_y:
+            good = good[good['value'] > 0]
+        else:
+            good = good[good['value'] >= 0]
+
         if len(good):
             ax.scatter(good['carp_x'], good['value'],
                        color=col, s=8, alpha=0.55, zorder=3, linewidths=0)
             all_vals.extend(good['value'].tolist())
 
-        # Only draw smooth if ≥4 data points (avoids wild extrapolation)
-        fit = log_log_fit(good['carp_x'].values, good['value'].values, X_SMOOTH) \
-              if len(good) >= 4 else None
+        # Smooth + CI
+        if log_y:
+            fit = log_log_fit(good['carp_x'].values, good['value'].values,
+                              X_SMOOTH) if len(good) >= 4 else None
+        else:
+            fit = semilog_fit(good['carp_x'].values, good['value'].values,
+                              X_SMOOTH) if len(good) >= 4 else None
+
         if fit:
             yf, yl, yu = fit
+            if not log_y:
+                yl = np.maximum(yl, 0)   # CI can't go below 0 on linear scale
             ax.plot(X_SMOOTH, yf, color=col, linewidth=0.9, zorder=4,
                     label=str(dose))
             ax.fill_between(X_SMOOTH, yl, yu, color=col, alpha=0.12, zorder=2)
         elif len(good) >= 2:
-            # Too few points for CI — just connect them with a thin line
             pts = good.sort_values('carp_x')
             ax.plot(pts['carp_x'], pts['value'], color=col, linewidth=0.7,
                     linestyle='--', zorder=4, label=str(dose), alpha=0.7)
 
     ax.set_xscale('log')
-    ax.set_yscale('log')
     ax.set_xticks(X_BREAKS)
     ax.set_xticklabels(X_LABELS)
     ax.set_xlim(0.4, 135)
     ax.xaxis.set_minor_formatter(NullFormatter())
-    ax.yaxis.set_minor_formatter(NullFormatter())
 
-    # Y-axis limits: based only on actual data (not the fitted curve)
-    if all_vals:
-        ylo = max(0.05, np.nanmin(all_vals) * 0.3)
-        yhi = np.nanmax(all_vals) * 5
-        ax.set_ylim(ylo, yhi)
+    if log_y:
+        ax.set_yscale('log')
+        ax.yaxis.set_minor_formatter(NullFormatter())
+        if all_vals:
+            ax.set_ylim(max(0.05, np.nanmin(all_vals) * 0.3),
+                        np.nanmax(all_vals) * 5)
+    else:
+        ax.set_yscale('linear')
+        if all_vals:
+            ax.set_ylim(0, np.nanmax(all_vals) * 1.35)
 
     if show_xlabel:
         ax.set_xlabel('Carprofen (µg/mL)')
@@ -177,8 +210,8 @@ def draw_elisa_panel(ax, df_panel, cytokine_col, cyt_label, palette,
     ax.set_title(title, pad=3)
 
     if anova_txt:
-        ax.text(0.03, 0.02, anova_txt, transform=ax.transAxes,
-                fontsize=5.5, color='#444444', va='bottom', ha='left',
+        ax.text(0.03, 0.97, anova_txt, transform=ax.transAxes,
+                fontsize=5.5, color='#444444', va='top', ha='left',
                 linespacing=1.4)
 
     ax.yaxis.grid(True, which='major', color='#E8E8E8', linewidth=0.3, zorder=0)
@@ -188,7 +221,7 @@ def draw_elisa_panel(ax, df_panel, cytokine_col, cyt_label, palette,
 # Build full ELISA figure: 3 rows (cytokines) × 5 cols (D1-D4 + Average)
 # ─────────────────────────────────────────────────────────────────────────────
 def make_elisa_figure(stimulus, palette, dose_title, dose_levels,
-                      fig_label, filename):
+                      fig_label, filename, log_y=True):
     df = elisa[elisa['Stimulus'] == stimulus].copy()
     donors     = ['D1','D2','D3','D4']
     col_titles = ['Donor 1','Donor 2','Donor 3','Donor 4','Average (n=4)']
@@ -216,6 +249,7 @@ def make_elisa_figure(stimulus, palette, dose_title, dose_levels,
                 palette     = palette,
                 dose_levels = dose_levels,
                 anova_txt   = anova_txt if is_avg else '',
+                log_y       = log_y,
                 show_xlabel = (ri == 2),
                 show_ylabel = (ci == 0),
                 title       = col_title,
@@ -254,18 +288,20 @@ make_elisa_figure(
     palette     = LPS_PAL,
     dose_title  = 'LPS (ng/mL)',
     dose_levels = [0, 1, 10, 100],
+    log_y       = True,
     fig_label   = 'Figure 2 | ELISA: Effect of carprofen on LPS-induced cytokine production in human MDMs',
     filename    = '/home/user/elisa/Figure2_ELISA_LPS',
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Figure 3 — BCG
+# Figure 3 — BCG  (log x, linear y — data too sparse for log-y)
 # ─────────────────────────────────────────────────────────────────────────────
 make_elisa_figure(
     stimulus    = 'BCG',
     palette     = BCG_PAL,
     dose_title  = 'BCG (MOI)',
     dose_levels = [0, 1, 10, 100],
+    log_y       = False,
     fig_label   = 'Figure 3 | ELISA: Effect of carprofen on BCG-induced cytokine production in human MDMs',
     filename    = '/home/user/elisa/Figure3_ELISA_BCG',
 )
@@ -304,90 +340,95 @@ def load_bcg():
 fc_df = load_bcg()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Figure 4 — BCG growth assay: 2 rows (EC, IC) × 2 cols (conditions)
+# Figure 4 — BCG growth assay: bar chart + SEM + donor dots
+#   2 rows (EC, IC)  ×  4 columns (MOI 0, 1, 10, 100)
+#   x = carprofen (categorical), bars = Media only vs +Carprofen
 # ─────────────────────────────────────────────────────────────────────────────
-COND_ORDER = ['Media only', '+Carprofen']
-FRAC_ORDER = ['EC', 'IC']
-MOI_LEVELS = [0, 1, 10, 100]
-PANEL_LET  = ['A','B','C','D']
+COND_ORDER  = ['Media only', '+Carprofen']
+FRAC_ORDER  = ['EC', 'IC']
+MOI_LEVELS  = [0, 1, 10, 100]
+MOI_LABELS  = ['MOI 0', 'MOI 1', 'MOI 10', 'MOI 100']
+CARP_CATS   = [0, 1, 10, 100]
+CARP_XLABS  = ['0', '1', '10', '100']
+COND_COLORS = {'Media only': '#5B9BD5', '+Carprofen': '#E06060'}
+BAR_W       = 0.35
+PANEL_LET4  = [['A','B','C','D'],['E','F','G','H']]
 
-fig4, axes4 = plt.subplots(2, 2, figsize=(7.5, 6.0))
-fig4.subplots_adjust(wspace=0.38, hspace=0.48)
+fig4, axes4 = plt.subplots(2, 4, figsize=(10, 5.5))
+fig4.subplots_adjust(wspace=0.35, hspace=0.55)
+
+rng = np.random.default_rng(42)
 
 for ri, frac in enumerate(FRAC_ORDER):
-    for ci, cond in enumerate(COND_ORDER):
-        ax  = axes4[ri, ci]
-        d   = fc_df[(fc_df['fraction']==frac) & (fc_df['condition']==cond)]
+    for ci, moi in enumerate(MOI_LEVELS):
+        ax = axes4[ri, ci]
 
-        for moi in MOI_LEVELS:
-            dm  = d[d['moi']==moi]
-            col = BCG_PAL[moi]
+        x_pos = np.arange(len(CARP_CATS))
 
-            # Scatter
-            if len(dm):
-                ax.scatter(dm['carp_x'], dm['fold_change'],
-                           color=col, s=10, alpha=0.55, zorder=3, linewidths=0)
+        for bi, cond in enumerate(COND_ORDER):
+            offsets = x_pos + (bi - 0.5) * BAR_W
+            col     = COND_COLORS[cond]
 
-            # Smooth + CI (fold change: fit on log-x, linear y)
-            xs, ys = dm['carp_x'].values, dm['fold_change'].values
-            mask   = (xs > 0) & np.isfinite(ys)
-            if mask.sum() >= 3:
-                lx    = np.log10(xs[mask])
-                ly    = ys[mask]
-                n     = len(lx)
-                sl,ic,*_ = stats.linregress(lx, ly)
-                ly_hat = ic + sl*lx
-                se_res = np.sqrt(np.sum((ly-ly_hat)**2)/(n-2))
-                lx_pred= np.log10(X_SMOOTH)
-                y_pred = ic + sl*lx_pred
-                lx_m   = lx.mean()
-                ss_x   = np.sum((lx-lx_m)**2)
-                t95    = stats.t.ppf(0.975, n-2)
-                if ss_x > 0:
-                    se_m = se_res*np.sqrt(1/n + (lx_pred-lx_m)**2/ss_x)
-                else:
-                    se_m = np.zeros_like(lx_pred)
-                ax.plot(X_SMOOTH, y_pred, color=col, linewidth=0.9, zorder=4,
-                        label=str(moi))
-                ax.fill_between(X_SMOOTH, y_pred-t95*se_m, y_pred+t95*se_m,
-                                color=col, alpha=0.12, zorder=2)
+            means, sems, donor_vals = [], [], []
+            for carp in CARP_CATS:
+                vals = fc_df[
+                    (fc_df['fraction']  == frac) &
+                    (fc_df['condition'] == cond) &
+                    (fc_df['moi']       == moi)  &
+                    (fc_df['carprofen'] == carp)
+                ]['fold_change'].dropna().values
+                m = np.mean(vals) if len(vals) else np.nan
+                s = (np.std(vals, ddof=1)/np.sqrt(len(vals))
+                     if len(vals) > 1 else 0)
+                means.append(m); sems.append(s); donor_vals.append(vals)
 
-        # Reference y=1
-        ax.axhline(1, color='#888888', linewidth=0.6, linestyle='--', zorder=1)
+            # Bars
+            ax.bar(offsets, means, width=BAR_W*0.88, color=col,
+                   zorder=2, label=cond)
+            # Error bars (SEM)
+            ax.errorbar(offsets, means, yerr=sems,
+                        fmt='none', ecolor='#222222',
+                        elinewidth=0.8, capsize=2.5, capthick=0.8, zorder=3)
+            # Individual donor dots
+            for xi, vals in zip(offsets, donor_vals):
+                if len(vals):
+                    jit = rng.uniform(-BAR_W*0.18, BAR_W*0.18, len(vals))
+                    ax.scatter(xi + jit, vals, s=10, color='black',
+                               zorder=4, linewidths=0, alpha=0.75)
 
-        ax.set_xscale('log')
-        ax.set_xticks(X_BREAKS)
-        ax.set_xticklabels(X_LABELS)
-        ax.set_xlim(0.4, 135)
-        ax.xaxis.set_minor_formatter(NullFormatter())
+        # Reference y = 1
+        ax.axhline(1, color='#888888', linewidth=0.6,
+                   linestyle='--', zorder=1)
 
-        # Y limits: from data, never negative
-        panel_d = fc_df[(fc_df['fraction']==frac) & (fc_df['condition']==cond)]
-        fc_vals = panel_d['fold_change'].dropna().values
-        if len(fc_vals):
-            ylo = max(0, np.percentile(fc_vals, 2) * 0.7)
-            yhi = np.percentile(fc_vals, 98) * 1.5
-            ax.set_ylim(ylo, max(yhi, 1.5))
-
-        ax.set_title(cond, pad=3)
-        if ri == 1:
-            ax.set_xlabel('Carprofen (µg/mL)')
-        if ci == 0:
-            ax.set_ylabel(f'{frac} fold change\n(normalised to 4 hpi)')
-
-        ax.yaxis.grid(True, which='major', color='#E8E8E8', linewidth=0.3, zorder=0)
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(CARP_XLABS, fontsize=6.5)
+        ax.set_ylim(bottom=0)
+        ax.yaxis.grid(True, which='major', color='#E8E8E8',
+                      linewidth=0.3, zorder=0)
         ax.set_axisbelow(True)
 
+        # Column title = MOI (top row only)
+        if ri == 0:
+            ax.set_title(MOI_LABELS[ci], pad=3, fontsize=7.5)
+        # Row label = fraction (left column only)
+        if ci == 0:
+            ax.set_ylabel(f'{frac}\nFold change (norm. 4 hpi)', fontsize=7)
+        # x label (bottom row only)
+        if ri == 1:
+            ax.set_xlabel('Carprofen (µg/mL)', fontsize=7)
+
         # Panel letter
-        ax.text(-0.15, 1.06, PANEL_LET[ri*2+ci], transform=ax.transAxes,
-                fontsize=10, fontweight='bold', va='top')
+        ax.text(-0.20 if ci==0 else -0.12, 1.07,
+                PANEL_LET4[ri][ci], transform=ax.transAxes,
+                fontsize=9, fontweight='bold', va='top')
 
 # Shared legend
-handles4 = [plt.Line2D([0],[0], color=BCG_PAL[m], linewidth=1.4,
-                        label=str(m)) for m in MOI_LEVELS]
-fig4.legend(handles=handles4, title='BCG (MOI)', title_fontsize=7,
-            loc='lower center', ncol=4, bbox_to_anchor=(0.5, -0.04),
-            fontsize=7, handlelength=1.5)
+import matplotlib.patches as mpatches
+handles4 = [mpatches.Patch(color=COND_COLORS[c], label=c)
+            for c in COND_ORDER]
+fig4.legend(handles=handles4, title_fontsize=7,
+            loc='lower center', ncol=2, bbox_to_anchor=(0.5, -0.04),
+            fontsize=7, handlelength=1.2)
 
 fig4.suptitle('Figure 4 | BCG growth assay: fold change in extracellular and intracellular BCG',
               fontsize=9, y=1.01)
