@@ -261,10 +261,10 @@ def make_elisa_figure(stimulus, palette, dose_title, dose_levels,
                 show_ylabel  = (ci == 0),
                 title        = dtitle,
             )
-            ax.text(-0.20 if ci == 0 else -0.12, 1.07,
-                    pan_let_d[ri * 4 + ci],
-                    transform=ax.transAxes,
-                    fontsize=9, fontweight='bold', va='top')
+            if ci == 0:
+                ax.text(-0.20, 1.07, pan_let_d[ri],
+                        transform=ax.transAxes,
+                        fontsize=9, fontweight='bold', va='top')
 
     # Row labels on the right edge
     for ri, (_, cyt_label) in enumerate(CYTOKINES):
