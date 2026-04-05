@@ -72,27 +72,16 @@ def elisa_stats(df, cytokine_col, stimulus, stim_levels):
                .reset_index())
     return stats
 
-# ── Generic ELISA figure (3-panel) ──────────────────────────────────────────
+# ── Generic ELISA figure (3-panel, line plot) ────────────────────────────────
 def make_elisa_figure(stimulus, stim_levels, stim_xlabel, stim_ticklabels,
                       ylabels, titles, panel_letters, filename):
     """
-    stimulus        : 'LPS' or 'BCG'
-    stim_levels     : list like ['L0','L1','L10','L100']
-    stim_xlabel     : x-axis label
-    stim_ticklabels : displayed tick labels
-    ylabels         : list of 3 y-axis labels
-    titles          : list of 3 panel titles
-    panel_letters   : list of 3 letters ['A','B','C']
-    filename        : output path
+    Line plot: x = stimulus concentration, one line per carprofen level.
+    Solid circles = mean, error bars = SEM, small dots = individual donors.
     """
     cytokines = [('IL1b', 'IL1b_pgml'), ('IL6', 'IL6_pgml'), ('TNFa', 'TNFa_pgml')]
-
-    n_stim   = len(stim_levels)
-    n_carp   = len(CARP_LEVELS)
-    bar_w    = 0.18
-    group_w  = n_carp * bar_w
-    # x positions: one group per stim level
-    x_centers = np.arange(n_stim)
+    n_stim    = len(stim_levels)
+    x_pos     = np.arange(n_stim)          # evenly-spaced categorical positions
 
     fig, axes = plt.subplots(1, 3, figsize=(7.2, 2.8))
     fig.subplots_adjust(wspace=0.45)
@@ -102,55 +91,59 @@ def make_elisa_figure(stimulus, stim_levels, stim_xlabel, stim_ticklabels,
 
         stats = elisa_stats(elisa[sheet], col, stimulus, stim_levels)
 
-        for ci, (carp, color, clabel) in enumerate(zip(CARP_LEVELS, CARP_COLORS, CARP_LABELS)):
-            offsets = x_centers + (ci - (n_carp - 1) / 2) * bar_w
-
+        for carp, color, clabel in zip(CARP_LEVELS, CARP_COLORS, CARP_LABELS):
             means, sems, all_vals = [], [], []
             for sl in stim_levels:
                 row = stats[(stats['Carprofen'] == carp) & (stats['Stim_Conc'] == sl)]
                 if len(row):
-                    means.append(row['mean'].values[0])
-                    sems.append(row['sem'].values[0] if not np.isnan(row['sem'].values[0]) else 0)
-                    all_vals.append(row['vals'].values[0])
+                    m = row['mean'].values[0]
+                    s = row['sem'].values[0]
+                    v = row['vals'].values[0]
                 else:
-                    means.append(0); sems.append(0); all_vals.append([])
+                    m, s, v = np.nan, np.nan, []
+                means.append(m if (m is not None and not (isinstance(m, float) and np.isnan(m))) else np.nan)
+                sems.append(s if (s is not None and not (isinstance(s, float) and np.isnan(s))) else 0)
+                all_vals.append(v)
 
-            means = np.array([0 if (v is None or (isinstance(v, float) and np.isnan(v))) else v
-                              for v in means])
-            sems  = np.array([0 if (v is None or (isinstance(v, float) and np.isnan(v))) else v
-                              for v in sems])
+            means = np.array(means, dtype=float)
+            sems  = np.array(sems,  dtype=float)
+            sems[np.isnan(sems)] = 0
 
-            ax.bar(offsets, means, width=bar_w * 0.85, color=color,
-                   yerr=sems, error_kw={'elinewidth': 0.8, 'capsize': 2, 'capthick': 0.8},
-                   zorder=2)
+            # Draw line + error bars (only where mean is not NaN)
+            valid = ~np.isnan(means)
+            if valid.any():
+                ax.plot(x_pos[valid], means[valid], color=color, linewidth=1.4,
+                        marker='o', markersize=5, markeredgewidth=0,
+                        label=clabel, zorder=3)
+                ax.errorbar(x_pos[valid], means[valid], yerr=sems[valid],
+                            fmt='none', ecolor=color, elinewidth=1.0,
+                            capsize=3, capthick=1.0, zorder=2)
 
-            # Individual donor dots
-            for xi, vals in zip(offsets, all_vals):
+            # Individual donor dots (small, slightly transparent)
+            jitter_rng = np.random.default_rng(42)
+            for xi, vals in zip(x_pos, all_vals):
                 if vals:
-                    jitter = np.random.default_rng(42).uniform(-bar_w * 0.15, bar_w * 0.15, len(vals))
-                    ax.scatter(xi + jitter, vals, s=12, color='black', zorder=3,
-                               linewidths=0, alpha=0.8)
+                    jitter = jitter_rng.uniform(-0.12, 0.12, len(vals))
+                    ax.scatter(xi + jitter, vals, s=9, color=color,
+                               zorder=1, linewidths=0, alpha=0.55)
 
-        ax.set_xticks(x_centers)
+        ax.set_xticks(x_pos)
         ax.set_xticklabels(stim_ticklabels, fontsize=7.5)
         ax.set_xlabel(stim_xlabel, fontsize=8)
         ax.set_ylabel(ylabel, fontsize=8)
         ax.set_title(title, fontsize=9, pad=4)
         ax.yaxis.set_major_locator(MaxNLocator(nbins=5, min_n_ticks=3))
-        ax.set_xlim(-0.5, n_stim - 0.5)
-        ymin, ymax = ax.get_ylim()
+        ax.set_xlim(-0.4, n_stim - 0.6)
         ax.set_ylim(bottom=0)
 
-        # Panel letter
         ax.text(-0.18, 1.05, letter, transform=ax.transAxes,
                 fontsize=11, fontweight='bold', va='top', ha='left')
 
-    # Legend
-    patches = [mpatches.Patch(color=c, label=l)
-               for c, l in zip(CARP_COLORS, CARP_LABELS)]
-    axes[2].legend(handles=patches, title='Carprofen', title_fontsize=7.5,
-                   loc='upper right', bbox_to_anchor=(1.0, 1.0),
-                   handlelength=1, handleheight=0.9)
+    # Single legend on last panel
+    axes[2].legend(title='Carprofen', title_fontsize=7.5,
+                   loc='upper left', fontsize=7.5,
+                   handlelength=1.4, handleheight=0.9,
+                   markerscale=0.9)
 
     fig.savefig(filename)
     plt.close(fig)
