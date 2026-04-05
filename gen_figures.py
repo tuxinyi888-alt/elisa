@@ -290,8 +290,8 @@ def make_elisa_figure(stimulus, palette, dose_title, dose_levels,
     # ─────────────────────────────────────────────────────────────────────────
     # Figure B: 1 row × 3 cols  (average + ANOVA)
     # ─────────────────────────────────────────────────────────────────────────
-    fig_a, axes_a = plt.subplots(1, 3, figsize=(8.5, 3.0))
-    fig_a.subplots_adjust(wspace=0.42)
+    fig_a, axes_a = plt.subplots(1, 3, figsize=(8.5, 4.2))
+    fig_a.subplots_adjust(wspace=0.42, bottom=0.44)
 
     for ci, (col_id, cyt_label) in enumerate(CYTOKINES):
         ax = axes_a[ci]
@@ -303,26 +303,30 @@ def make_elisa_figure(stimulus, palette, dose_title, dose_levels,
             cyt_label    = cyt_label,
             palette      = palette,
             dose_levels  = dose_levels,
-            anova_txt    = anova_txts[col_id],
+            anova_txt    = '',          # drawn outside axes below
             log_y        = log_y,
             show_xlabel  = True,
             show_ylabel  = True,
-            title        = cyt_label.split(' ')[0],   # just the cytokine name
+            title        = cyt_label.split(' ')[0],
         )
         ax.text(-0.20, 1.07, pan_let_a[ci],
                 transform=ax.transAxes,
                 fontsize=10, fontweight='bold', va='top')
+        # ANOVA annotation below panel, outside axes
+        ax.text(0.5, -0.30, anova_txts[col_id],
+                transform=ax.transAxes, fontsize=5.5, color='#444444',
+                va='top', ha='center', linespacing=1.5)
 
-    # Legend below figure
+    # Legend at very bottom
     handles = [plt.Line2D([0], [0], color=palette[d], linewidth=1.4,
                           label=str(d)) for d in dose_levels]
     fig_a.legend(handles=handles, title=dose_title,
                  title_fontsize=7, loc='lower center', fontsize=7,
                  handlelength=1.4, ncol=len(dose_levels),
-                 bbox_to_anchor=(0.5, -0.06))
+                 bbox_to_anchor=(0.5, 0.01))
 
     fig_a.suptitle(fig_label + ' — average (n=4)',
-                   fontsize=9, y=1.04, fontweight='normal')
+                   fontsize=9, y=1.02, fontweight='normal')
     fig_a.savefig(filename + '_average.pdf', bbox_inches='tight')
     fig_a.savefig(filename + '_average.png', bbox_inches='tight')
     plt.close(fig_a)
