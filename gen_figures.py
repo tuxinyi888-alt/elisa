@@ -222,63 +222,109 @@ def draw_elisa_panel(ax, df_panel, cytokine_col, cyt_label, palette,
 # ─────────────────────────────────────────────────────────────────────────────
 def make_elisa_figure(stimulus, palette, dose_title, dose_levels,
                       fig_label, filename, log_y=True):
+    """
+    Produces TWO separate files:
+      {filename}_donors.pdf   — 3 rows (cytokines) × 4 cols (donors)
+      {filename}_average.pdf  — 1 row × 3 cols (cytokines), average + ANOVA
+    """
     df = elisa[elisa['Stimulus'] == stimulus].copy()
-    donors     = ['D1','D2','D3','D4']
-    col_titles = ['Donor 1','Donor 2','Donor 3','Donor 4','Average (n=4)']
-    panel_letters = 'ABCDEFGHIJKLMNO'
+    donors      = ['D1', 'D2', 'D3', 'D4']
+    donor_titles= ['Donor 1', 'Donor 2', 'Donor 3', 'Donor 4']
+    pan_let_d   = 'ABCDEFGHIJKL'   # 12 letters for 3×4
+    pan_let_a   = 'ABC'             # 3 letters for average row
 
-    fig, axes = plt.subplots(3, 5, figsize=(13, 7.5))
-    fig.subplots_adjust(wspace=0.38, hspace=0.52)
+    # ── pre-compute ANOVA for each cytokine ──────────────────────────────────
+    anova_txts = {}
+    for col_id, _ in CYTOKINES:
+        df_cyt = df[df['cytokine'] == col_id]
+        anova_txts[col_id] = run_anova(df_cyt)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Figure A: 3 rows × 4 cols  (individual donors)
+    # ─────────────────────────────────────────────────────────────────────────
+    fig_d, axes_d = plt.subplots(3, 4, figsize=(10.5, 7.5))
+    fig_d.subplots_adjust(wspace=0.35, hspace=0.52)
 
     for ri, (col_id, cyt_label) in enumerate(CYTOKINES):
-        # Pre-compute ANOVA on full dataset for the average panel
-        df_cyt = df[df['cytokine'] == col_id].copy()
-        anova_txt = run_anova(df_cyt)
-
-        for ci, (donor, col_title) in enumerate(zip(donors + [None], col_titles)):
-            ax    = axes[ri, ci]
-            is_avg = donor is None
-            df_p  = df if is_avg else df[df['Donor'] == donor]
-
-            df_p2 = (df_cyt if is_avg else df_cyt[df_cyt['Donor'] == donor])
+        df_cyt = df[df['cytokine'] == col_id]
+        for ci, (donor, dtitle) in enumerate(zip(donors, donor_titles)):
+            ax = axes_d[ri, ci]
             draw_elisa_panel(
-                ax          = ax,
-                df_panel    = df_p2,
-                cytokine_col= col_id,
-                cyt_label   = cyt_label,
-                palette     = palette,
-                dose_levels = dose_levels,
-                anova_txt   = anova_txt if is_avg else '',
-                log_y       = log_y,
-                show_xlabel = (ri == 2),
-                show_ylabel = (ci == 0),
-                title       = col_title,
+                ax           = ax,
+                df_panel     = df_cyt[df_cyt['Donor'] == donor],
+                cytokine_col = col_id,
+                cyt_label    = cyt_label,
+                palette      = palette,
+                dose_levels  = dose_levels,
+                log_y        = log_y,
+                show_xlabel  = (ri == 2),
+                show_ylabel  = (ci == 0),
+                title        = dtitle,
             )
-
-            # Panel letter
-            letter = panel_letters[ri*5 + ci]
-            ax.text(-0.18 if ci==0 else -0.12, 1.06, letter,
+            ax.text(-0.20 if ci == 0 else -0.12, 1.07,
+                    pan_let_d[ri * 4 + ci],
                     transform=ax.transAxes,
                     fontsize=9, fontweight='bold', va='top')
 
-    # Row labels (cytokine names) on the right
+    # Row labels on the right edge
     for ri, (_, cyt_label) in enumerate(CYTOKINES):
-        axes[ri, -1].annotate(
-            cyt_label, xy=(1.18, 0.5), xycoords='axes fraction',
+        axes_d[ri, -1].annotate(
+            cyt_label, xy=(1.20, 0.5), xycoords='axes fraction',
             rotation=270, va='center', ha='left', fontsize=7, color='#333333')
 
-    # Legend (top-right panel)
-    leg_ax = axes[0, 4]
-    handles = [plt.Line2D([0],[0], color=palette[d], linewidth=1.4,
+    # Legend on first panel
+    handles = [plt.Line2D([0], [0], color=palette[d], linewidth=1.4,
                           label=str(d)) for d in dose_levels]
-    leg_ax.legend(handles=handles, title=dose_title, title_fontsize=6.5,
-                  loc='lower right', fontsize=6.5, handlelength=1.5)
+    axes_d[0, 0].legend(handles=handles, title=dose_title,
+                        title_fontsize=6, loc='upper left', fontsize=6,
+                        handlelength=1.4)
 
-    fig.suptitle(fig_label, fontsize=9, y=1.005, fontweight='normal')
-    fig.savefig(filename + '.pdf')
-    fig.savefig(filename + '.png')
-    plt.close(fig)
-    print(f'Saved {filename}')
+    fig_d.suptitle(fig_label + ' — individual donors',
+                   fontsize=9, y=1.005, fontweight='normal')
+    fig_d.savefig(filename + '_donors.pdf')
+    fig_d.savefig(filename + '_donors.png')
+    plt.close(fig_d)
+    print(f'Saved {filename}_donors')
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Figure B: 1 row × 3 cols  (average + ANOVA)
+    # ─────────────────────────────────────────────────────────────────────────
+    fig_a, axes_a = plt.subplots(1, 3, figsize=(8.5, 3.0))
+    fig_a.subplots_adjust(wspace=0.42)
+
+    for ci, (col_id, cyt_label) in enumerate(CYTOKINES):
+        ax = axes_a[ci]
+        df_cyt = df[df['cytokine'] == col_id]
+        draw_elisa_panel(
+            ax           = ax,
+            df_panel     = df_cyt,
+            cytokine_col = col_id,
+            cyt_label    = cyt_label,
+            palette      = palette,
+            dose_levels  = dose_levels,
+            anova_txt    = anova_txts[col_id],
+            log_y        = log_y,
+            show_xlabel  = True,
+            show_ylabel  = True,
+            title        = cyt_label.split(' ')[0],   # just the cytokine name
+        )
+        ax.text(-0.20, 1.07, pan_let_a[ci],
+                transform=ax.transAxes,
+                fontsize=10, fontweight='bold', va='top')
+
+    # Legend on last panel
+    handles = [plt.Line2D([0], [0], color=palette[d], linewidth=1.4,
+                          label=str(d)) for d in dose_levels]
+    axes_a[-1].legend(handles=handles, title=dose_title,
+                      title_fontsize=7, loc='upper right', fontsize=7,
+                      handlelength=1.4)
+
+    fig_a.suptitle(fig_label + ' — average (n=4)',
+                   fontsize=9, y=1.04, fontweight='normal')
+    fig_a.savefig(filename + '_average.pdf')
+    fig_a.savefig(filename + '_average.png')
+    plt.close(fig_a)
+    print(f'Saved {filename}_average')
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Figure 2 — LPS
