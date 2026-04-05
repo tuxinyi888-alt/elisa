@@ -272,17 +272,18 @@ def make_elisa_figure(stimulus, palette, dose_title, dose_levels,
             cyt_label, xy=(1.20, 0.5), xycoords='axes fraction',
             rotation=270, va='center', ha='left', fontsize=7, color='#333333')
 
-    # Legend on first panel
+    # Legend below figure
     handles = [plt.Line2D([0], [0], color=palette[d], linewidth=1.4,
                           label=str(d)) for d in dose_levels]
-    axes_d[0, 0].legend(handles=handles, title=dose_title,
-                        title_fontsize=6, loc='upper left', fontsize=6,
-                        handlelength=1.4)
+    fig_d.legend(handles=handles, title=dose_title,
+                 title_fontsize=6.5, loc='lower center', fontsize=6.5,
+                 handlelength=1.4, ncol=len(dose_levels),
+                 bbox_to_anchor=(0.5, -0.02))
 
     fig_d.suptitle(fig_label + ' — individual donors',
                    fontsize=9, y=1.005, fontweight='normal')
-    fig_d.savefig(filename + '_donors.pdf')
-    fig_d.savefig(filename + '_donors.png')
+    fig_d.savefig(filename + '_donors.pdf', bbox_inches='tight')
+    fig_d.savefig(filename + '_donors.png', bbox_inches='tight')
     plt.close(fig_d)
     print(f'Saved {filename}_donors')
 
@@ -312,17 +313,18 @@ def make_elisa_figure(stimulus, palette, dose_title, dose_levels,
                 transform=ax.transAxes,
                 fontsize=10, fontweight='bold', va='top')
 
-    # Legend on last panel
+    # Legend below figure
     handles = [plt.Line2D([0], [0], color=palette[d], linewidth=1.4,
                           label=str(d)) for d in dose_levels]
-    axes_a[-1].legend(handles=handles, title=dose_title,
-                      title_fontsize=7, loc='upper right', fontsize=7,
-                      handlelength=1.4)
+    fig_a.legend(handles=handles, title=dose_title,
+                 title_fontsize=7, loc='lower center', fontsize=7,
+                 handlelength=1.4, ncol=len(dose_levels),
+                 bbox_to_anchor=(0.5, -0.06))
 
     fig_a.suptitle(fig_label + ' — average (n=4)',
                    fontsize=9, y=1.04, fontweight='normal')
-    fig_a.savefig(filename + '_average.pdf')
-    fig_a.savefig(filename + '_average.png')
+    fig_a.savefig(filename + '_average.pdf', bbox_inches='tight')
+    fig_a.savefig(filename + '_average.png', bbox_inches='tight')
     plt.close(fig_a)
     print(f'Saved {filename}_average')
 
