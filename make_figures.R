@@ -1,281 +1,350 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # make_figures.R
-# Generates Figure 2, 3, 4 for carprofen / MDM report
+# Figures 2, 3, 4 for carprofen / MDM report
 #
-# Requirements: ggplot2, dplyr, tidyr, readxl, patchwork, stringr
-# Install if needed:
-#   install.packages(c("tidyverse","readxl","patchwork"))
+# Install once:  install.packages(c("tidyverse","readxl","patchwork"))
+# Run:           source("make_figures.R")    (working dir = repo root)
 # ─────────────────────────────────────────────────────────────────────────────
 
-library(ggplot2)
-library(dplyr)
-library(tidyr)
-library(readxl)
-library(patchwork)
-library(stringr)
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(readxl)
+  library(patchwork)
+  library(scales)
+})
 
 # ── Shared theme ──────────────────────────────────────────────────────────────
-theme_report <- function() {
-  theme_classic(base_size = 8, base_family = "sans") +
+theme_report <- function(base_size = 7) {
+  theme_classic(base_size = base_size, base_family = "sans") +
     theme(
-      axis.line        = element_line(linewidth = 0.5),
-      axis.ticks       = element_line(linewidth = 0.4),
-      axis.text        = element_text(size = 7.5),
-      axis.title       = element_text(size = 8),
-      plot.title       = element_text(size = 9, hjust = 0.5),
-      legend.title     = element_text(size = 7.5),
-      legend.text      = element_text(size = 7.5),
-      legend.key.size  = unit(0.4, "cm"),
-      plot.tag         = element_text(size = 11, face = "bold"),
-      panel.grid.major.y = element_line(colour = "grey92", linewidth = 0.3)
+      axis.line          = element_line(linewidth = 0.45),
+      axis.ticks         = element_line(linewidth = 0.35),
+      axis.text          = element_text(size = base_size - 0.5),
+      axis.title         = element_text(size = base_size),
+      plot.title         = element_text(size = base_size + 0.5, hjust = 0.5,
+                                        face = "plain"),
+      plot.tag           = element_text(size = 10, face = "bold"),
+      legend.title       = element_text(size = base_size - 0.5, face = "bold"),
+      legend.text        = element_text(size = base_size - 0.5),
+      legend.key.size    = unit(0.35, "cm"),
+      panel.grid.major.y = element_line(colour = "grey92", linewidth = 0.25),
+      plot.margin        = margin(4, 6, 2, 4)
     )
 }
 
-# Carprofen colour palette (light → dark blue)
-carp_colors <- c("0"   = "#AECDE8",
-                 "1"   = "#5BA4CF",
-                 "10"  = "#2171B5",
-                 "100" = "#084594")
-carp_labels <- c("0" = "0 µg/mL", "1" = "1 µg/mL",
-                 "10" = "10 µg/mL", "100" = "100 µg/mL")
+# ── Colour palettes ──────────────────────────────────────────────────────────
+# LPS doses:  warm colours (light → dark red)
+lps_pal  <- c("0"="#D9D9D9", "1"="#FDBB84", "10"="#E34A33", "100"="#7F0000")
+# BCG doses:  cool colours (light → dark blue)
+bcg_pal  <- c("0"="#D9D9D9", "1"="#9ECAE1", "10"="#3182BD", "100"="#08306B")
+# BCG MOI for Figure 4
+moi_pal  <- c("0"="#D9D9D9", "1"="#9ECAE1", "10"="#3182BD", "100"="#08306B")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1.  Load & reshape ELISA data
+# 1. Load & tidy ELISA data
 # ─────────────────────────────────────────────────────────────────────────────
-read_elisa_sheet <- function(path, sheet, cytokine_col) {
+read_elisa_sheet <- function(path, sheet, col_name) {
   read_excel(path, sheet = sheet) |>
-    select(Donor, Carprofen, Stimulus, Stim_Conc, value = all_of(cytokine_col)) |>
+    select(1:5) |>
+    setNames(c("Donor","Carprofen","Stimulus","Stim_Conc","value")) |>
     mutate(
-      cytokine = cytokine_col,
-      value    = suppressWarnings(as.numeric(value))
+      cytokine  = col_name,
+      value     = suppressWarnings(as.numeric(value)),
+      carp_num  = as.numeric(str_remove(Carprofen, "C")),
+      stim_num  = as.numeric(str_remove(Stim_Conc, "[LBb]")),
+      # 0 µg/mL carprofen → 0.5 for log-scale positioning
+      carp_x    = if_else(carp_num == 0, 0.5, as.numeric(carp_num)),
+      stim_fac  = factor(stim_num)
     )
 }
 
-elisa_path <- "ELISA.xlsx"
+elisa <- bind_rows(
+  read_elisa_sheet("ELISA.xlsx", "IL1b", "IL-1\u03b2 (pg/mL)"),
+  read_elisa_sheet("ELISA.xlsx", "IL6",  "IL-6 (pg/mL)"),
+  read_elisa_sheet("ELISA.xlsx", "TNFa", "TNF-\u03b1 (pg/mL)")
+) |>
+  mutate(cytokine = factor(cytokine,
+                           levels = c("IL-1\u03b2 (pg/mL)",
+                                      "IL-6 (pg/mL)",
+                                      "TNF-\u03b1 (pg/mL)")))
 
-elisa_raw <- bind_rows(
-  read_elisa_sheet(elisa_path, "IL1b", "IL1b_pgml"),
-  read_elisa_sheet(elisa_path, "IL6",  "IL6_pgml"),
-  read_elisa_sheet(elisa_path, "TNFa", "TNFa_pgml")
-)
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Two-way ANOVA helper (returns formatted string for annotation)
+# ─────────────────────────────────────────────────────────────────────────────
+run_anova <- function(df, cytokine_name, stimulus) {
+  d <- df |>
+    filter(cytokine == cytokine_name, Stimulus == stimulus, !is.na(value))
+  if (nrow(d) < 4) return("")
+  tryCatch({
+    m  <- aov(value ~ factor(carp_num) * factor(stim_num), data = d)
+    s  <- summary(m)[[1]]
+    rn <- rownames(s)
+    fmt <- function(p) {
+      if (is.na(p))    return("n.s.")
+      if (p < 0.0001) return("p < 0.0001")
+      if (p < 0.001)  return("p < 0.001")
+      sprintf("p = %.3f", p)
+    }
+    p_carp <- fmt(s[grep("carp", rn)[1], "Pr(>F)"])
+    p_stim <- fmt(s[grep("stim", rn)[1], "Pr(>F)"])
+    p_int  <- fmt(s[grep(":",    rn)[1], "Pr(>F)"])
+    paste0("2-way ANOVA\n",
+           "Carprofen: ",   p_carp, "\n",
+           "Stimulus: ",    p_stim, "\n",
+           "Interaction: ", p_int)
+  }, error = function(e) "")
+}
 
-# Numeric carprofen & stimulus concentration from labels
-elisa <- elisa_raw |>
-  mutate(
-    carp_num  = as.numeric(str_remove(Carprofen, "C")),
-    stim_num  = as.numeric(str_remove(Stim_Conc, "[LB]")),
-    carp_fac  = factor(carp_num, levels = c(0, 1, 10, 100)),
-    cytokine  = factor(cytokine,
-                       levels = c("IL1b_pgml", "IL6_pgml", "TNFa_pgml"),
-                       labels = c("IL-1\u03b2 (pg/mL)", "IL-6 (pg/mL)", "TNF-\u03b1 (pg/mL)"))
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Single ELISA panel (one donor or average)
+# ─────────────────────────────────────────────────────────────────────────────
+elisa_panel <- function(df, cytokine_name, stimulus,
+                        donor       = NULL,   # NULL = all donors (average)
+                        dose_pal    = lps_pal,
+                        dose_title  = "LPS (ng/mL)",
+                        show_legend = FALSE,
+                        show_ylabel = TRUE,
+                        show_xlabel = TRUE,
+                        anova_text  = "") {
+
+  d <- df |>
+    filter(cytokine == cytokine_name, Stimulus == stimulus)
+  if (!is.null(donor)) d <- filter(d, Donor == donor)
+
+  # Drop rows with NA or non-positive value (can't log-transform)
+  d <- filter(d, !is.na(value), value > 0)
+
+  # Title
+  ttl <- if (is.null(donor)) "Average" else donor
+
+  # x / y limits
+  x_breaks <- c(0.5, 1, 10, 100)
+  x_labels <- c("0", "1", "10", "100")
+
+  p <- ggplot(d, aes(x = carp_x, y = value,
+                     colour = stim_fac, fill = stim_fac)) +
+    # Individual data points
+    geom_point(size = 1.0, alpha = 0.55, shape = 16) +
+    # Smooth fit (lm in log-log space = power-law dose-response)
+    geom_smooth(method  = "lm",
+                formula = y ~ x,
+                se      = TRUE,
+                alpha   = 0.12,
+                linewidth = 0.75) +
+    scale_x_log10(breaks = x_breaks, labels = x_labels,
+                  limits = c(0.4, 130)) +
+    scale_y_log10(labels = label_comma()) +
+    scale_colour_manual(values = dose_pal, name = dose_title) +
+    scale_fill_manual(  values = dose_pal, name = dose_title, guide = "none") +
+    labs(title = ttl,
+         y = if (show_ylabel) cytokine_name else NULL,
+         x = if (show_xlabel) "Carprofen (\u00b5g/mL)" else NULL) +
+    theme_report()
+
+  # 2-way ANOVA annotation (average panel only)
+  if (nchar(anova_text) > 0) {
+    p <- p + annotate("text",
+                      x = 0.45, y = Inf,
+                      label = anova_text,
+                      hjust = 0, vjust = 1.25,
+                      size  = 2.0, colour = "grey30",
+                      fontface = "plain")
+  }
+
+  if (!show_legend) p <- p + theme(legend.position = "none")
+
+  p
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. Build full ELISA figure  (3 cytokines × 5 panels)
+# ─────────────────────────────────────────────────────────────────────────────
+make_elisa_figure <- function(stimulus,
+                               dose_pal,
+                               dose_title,
+                               fig_title,
+                               filename_stem) {
+
+  cytokines_vec <- levels(elisa$cytokine)
+  donors_vec    <- c("D1","D2","D3","D4")
+  col_names     <- c(donors_vec, "Average")
+
+  # Precompute ANOVA strings (one per cytokine)
+  anova_texts <- setNames(
+    lapply(cytokines_vec, run_anova,
+           df = elisa, stimulus = stimulus),
+    cytokines_vec
   )
 
-# Summary: mean ± SEM per (carp, stim)
-elisa_summary <- function(df) {
-  df |>
-    group_by(cytokine, Carprofen, carp_num, carp_fac, stim_num) |>
-    summarise(
-      mean_val = mean(value, na.rm = TRUE),
-      sem_val  = sd(value, na.rm = TRUE) / sqrt(sum(!is.na(value))),
-      n        = sum(!is.na(value)),
-      .groups  = "drop"
-    ) |>
-    filter(!is.na(mean_val))
+  # Build 3×5 panel matrix
+  panel_list <- list()
+  for (ri in seq_along(cytokines_vec)) {
+    cyt <- cytokines_vec[ri]
+    for (ci in seq_along(col_names)) {
+      donor      <- if (col_names[ci] == "Average") NULL else col_names[ci]
+      is_avg     <- is.null(donor)
+      show_y     <- (ci == 1)
+      show_x     <- (ri == length(cytokines_vec))
+      show_leg   <- (ci == length(col_names) && ri == 1)
+      anova_ann  <- if (is_avg) anova_texts[[cyt]] else ""
+
+      panel_list[[length(panel_list) + 1]] <-
+        elisa_panel(
+          df          = elisa,
+          cytokine_name = cyt,
+          stimulus    = stimulus,
+          donor       = donor,
+          dose_pal    = dose_pal,
+          dose_title  = dose_title,
+          show_legend = show_leg,
+          show_ylabel = show_y,
+          show_xlabel = show_x,
+          anova_text  = anova_ann
+        )
+    }
+  }
+
+  # Arrange as 3 rows × 5 cols
+  fig <- wrap_plots(panel_list, nrow = 3, ncol = 5,
+                    guides = "collect") +
+    plot_annotation(
+      title     = fig_title,
+      tag_levels = list(
+        c("A","B","C","D","E",
+          "F","G","H","I","J",
+          "K","L","M","N","O")
+      )
+    ) &
+    theme(plot.tag = element_text(size = 8, face = "bold"),
+          legend.position = "right")
+
+  ggsave(paste0(filename_stem, ".pdf"),
+         fig, width = 13, height = 7.5, units = "in")
+  ggsave(paste0(filename_stem, ".png"),
+         fig, width = 13, height = 7.5, units = "in", dpi = 300)
+  message("Saved ", filename_stem)
+  invisible(fig)
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2.  Build a single ELISA panel (line plot)
+# Figure 2 — ELISA LPS
 # ─────────────────────────────────────────────────────────────────────────────
-elisa_panel <- function(raw_df, summ_df, cyt_label, show_legend = FALSE) {
-  raw_sub  <- filter(raw_df,  cytokine == cyt_label, !is.na(value))
-  summ_sub <- filter(summ_df, cytokine == cyt_label)
+make_elisa_figure(
+  stimulus      = "LPS",
+  dose_pal      = lps_pal,
+  dose_title    = "LPS (ng/mL)",
+  fig_title     = "Figure 2 | ELISA: Effect of carprofen on LPS-induced cytokine production",
+  filename_stem = "Figure2_ELISA_LPS"
+)
 
-  p <- ggplot(summ_sub, aes(x = stim_num, colour = carp_fac, group = carp_fac)) +
-    # Individual donor dots (small, transparent, same colour)
-    geom_jitter(data = raw_sub,
-                aes(x = stim_num, y = value, colour = carp_fac),
-                width = 0.08, size = 1.4, alpha = 0.45,
-                inherit.aes = FALSE) +
-    # Mean line
-    geom_line(aes(y = mean_val), linewidth = 0.9) +
-    # Mean points
-    geom_point(aes(y = mean_val), size = 2.8, shape = 16) +
-    # SEM error bars
-    geom_errorbar(aes(ymin = mean_val - sem_val,
-                      ymax = mean_val + sem_val),
-                  width = 0.15, linewidth = 0.7) +
-    scale_colour_manual(values = carp_colors, labels = carp_labels,
-                        name = "Carprofen") +
-    scale_x_continuous(breaks = unique(raw_sub$stim_num)) +
-    expand_limits(y = 0) +
-    labs(title = str_remove(cyt_label, " \\(pg/mL\\)"),
-         y = cyt_label, x = NULL) +
+# ─────────────────────────────────────────────────────────────────────────────
+# Figure 3 — ELISA BCG
+# ─────────────────────────────────────────────────────────────────────────────
+make_elisa_figure(
+  stimulus      = "BCG",
+  dose_pal      = bcg_pal,
+  dose_title    = "BCG (MOI)",
+  fig_title     = "Figure 3 | ELISA: Effect of carprofen on BCG-induced cytokine production",
+  filename_stem = "Figure3_ELISA_BCG"
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Load BCG flow-cytometry data (AIF007 xls files)
+#    Files 1–3 = media only after 4 h (transient)
+#    Files 4–6 = +carprofen continued (sustained)
+# ─────────────────────────────────────────────────────────────────────────────
+read_aif <- function(fnum) {
+  cond  <- if (fnum <= 3) "Media only" else "+Carprofen"
+  donor <- paste0("D", ((fnum - 1) %% 3) + 1)
+  df <- read_excel(sprintf("AIF007-%d_Table.xls", fnum),
+                   col_names = FALSE) |>
+    setNames(c("sample","bead_pct","beads","nb_pct","nb_n",
+               "bcg_pct","bcg_n","bcg_gmean","debris_pct"))
+  df |>
+    filter(str_detect(sample, "\\.fcs$")) |>
+    transmute(
+      sample    = str_remove(sample, "\\.fcs$"),
+      condition = cond,
+      donor     = donor,
+      beads     = as.numeric(beads),
+      bcg_n     = as.numeric(bcg_n)
+    ) |>
+    separate(sample, into = c("tp","fraction","cm"), sep = "_") |>
+    mutate(
+      timepoint = as.integer(str_extract(tp, "\\d+")),
+      carprofen = as.numeric(str_extract(cm, "(?<=C)\\d+")),
+      moi       = as.numeric(str_extract(cm, "(?<=B)\\d+")),
+      carp_x    = if_else(carprofen == 0, 0.5, carprofen)
+    ) |>
+    select(condition, donor, timepoint, fraction, carprofen, carp_x, moi, beads, bcg_n)
+}
+
+fc_raw <- bind_rows(lapply(1:6, read_aif))
+
+# Fold change = (7 dpi BCG/beads) / (4 hpi BCG/beads)
+fc_df <- fc_raw |>
+  mutate(norm = bcg_n / beads) |>
+  pivot_wider(id_cols = c(condition, donor, fraction, carprofen, carp_x, moi),
+              names_from = timepoint, names_prefix = "t",
+              values_from = norm) |>
+  mutate(fold_change = t7 / t4) |>
+  filter(!is.na(fold_change)) |>
+  mutate(
+    condition = factor(condition, levels = c("Media only","+Carprofen")),
+    fraction  = factor(fraction,  levels = c("EC","IC")),
+    moi_fac   = factor(moi, levels = c(0,1,10,100))
+  )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Figure 4 — BCG growth assay
+#    2 rows (EC, IC) × 2 cols (Media only, +Carprofen)
+#    x = carprofen (log), y = fold change (linear), lines = MOI
+# ─────────────────────────────────────────────────────────────────────────────
+flow_panel <- function(frac, cond, show_legend = FALSE,
+                       show_ylabel = TRUE, show_xlabel = TRUE) {
+  d <- filter(fc_df, fraction == frac, condition == cond,
+              !is.na(fold_change))
+
+  p <- ggplot(d, aes(x = carp_x, y = fold_change,
+                     colour = moi_fac, fill = moi_fac)) +
+    geom_hline(yintercept = 1, linetype = "dashed",
+               colour = "grey50", linewidth = 0.5) +
+    geom_point(size = 1.2, alpha = 0.55, shape = 16) +
+    geom_smooth(method = "lm", formula = y ~ x,
+                se = TRUE, alpha = 0.12, linewidth = 0.75) +
+    scale_x_log10(breaks = c(0.5,1,10,100),
+                  labels = c("0","1","10","100"),
+                  limits = c(0.4, 130)) +
+    scale_colour_manual(values = moi_pal, name = "BCG (MOI)") +
+    scale_fill_manual(  values = moi_pal, name = "BCG (MOI)", guide = "none") +
+    labs(
+      title = as.character(cond),
+      y = if (show_ylabel) paste0(frac, " fold change\n(normalised to 4 hpi)") else NULL,
+      x = if (show_xlabel) "Carprofen (\u00b5g/mL)" else NULL
+    ) +
     theme_report()
 
   if (!show_legend) p <- p + theme(legend.position = "none")
   p
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Figure 2 — ELISA LPS
-# ─────────────────────────────────────────────────────────────────────────────
-lps_raw  <- filter(elisa, Stimulus == "LPS")
-lps_summ <- elisa_summary(lps_raw)
+fig4 <-
+  (flow_panel("EC", "Media only",  show_xlabel = FALSE) +
+   flow_panel("EC", "+Carprofen",  show_xlabel = FALSE, show_ylabel = FALSE,
+              show_legend = TRUE)) /
+  (flow_panel("IC", "Media only") +
+   flow_panel("IC", "+Carprofen",  show_ylabel = FALSE)) +
+  plot_annotation(
+    title      = "Figure 4 | BCG growth assay: fold change in extracellular and intracellular BCG",
+    tag_levels = "A"
+  ) &
+  theme(plot.tag       = element_text(size = 10, face = "bold"),
+        legend.position = "right")
 
-p2a <- elisa_panel(lps_raw, lps_summ, "IL-1\u03b2 (pg/mL)") +
-  labs(x = "LPS concentration (ng/mL)")
-p2b <- elisa_panel(lps_raw, lps_summ, "IL-6 (pg/mL)") +
-  labs(x = "LPS concentration (ng/mL)")
-p2c <- elisa_panel(lps_raw, lps_summ, "TNF-\u03b1 (pg/mL)", show_legend = TRUE) +
-  labs(x = "LPS concentration (ng/mL)")
-
-fig2 <- (p2a + p2b + p2c) +
-  plot_annotation(tag_levels = "A") &
-  theme(plot.tag = element_text(size = 11, face = "bold"))
-
-ggsave("Figure2_ELISA_LPS.pdf", fig2, width = 7.2, height = 2.8, units = "in")
-ggsave("Figure2_ELISA_LPS.png", fig2, width = 7.2, height = 2.8, units = "in", dpi = 300)
-message("Saved Figure 2")
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Figure 3 — ELISA BCG
-# ─────────────────────────────────────────────────────────────────────────────
-bcg_raw  <- filter(elisa, Stimulus == "BCG")
-bcg_summ <- elisa_summary(bcg_raw)
-
-p3a <- elisa_panel(bcg_raw, bcg_summ, "IL-1\u03b2 (pg/mL)") +
-  labs(x = "BCG (MOI)")
-p3b <- elisa_panel(bcg_raw, bcg_summ, "IL-6 (pg/mL)") +
-  labs(x = "BCG (MOI)")
-p3c <- elisa_panel(bcg_raw, bcg_summ, "TNF-\u03b1 (pg/mL)", show_legend = TRUE) +
-  labs(x = "BCG (MOI)")
-
-fig3 <- (p3a + p3b + p3c) +
-  plot_annotation(tag_levels = "A") &
-  theme(plot.tag = element_text(size = 11, face = "bold"))
-
-ggsave("Figure3_ELISA_BCG.pdf", fig3, width = 7.2, height = 2.8, units = "in")
-ggsave("Figure3_ELISA_BCG.png", fig3, width = 7.2, height = 2.8, units = "in", dpi = 300)
-message("Saved Figure 3")
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3.  Load BCG flow-cytometry data (AIF007 xls files)
-#     Files 1–3 = Media only (transient)  |  Files 4–6 = +Carprofen (sustained)
-# ─────────────────────────────────────────────────────────────────────────────
-read_aif <- function(file_num) {
-  condition <- if (file_num <= 3) "Media only" else "+Carprofen"
-  donor     <- paste0("D", ((file_num - 1) %% 3) + 1)
-  path      <- sprintf("AIF007-%d_Table.xls", file_num)
-
-  df <- read_excel(path, col_names = FALSE) |>
-    setNames(c("sample", "bead_pct", "beads", "nobead_pct", "nobeads",
-               "bcg_pct", "bcg_n", "bcg_gmean", "debris_pct"))
-
-  df |>
-    filter(str_detect(sample, "\\.fcs$")) |>
-    mutate(
-      sample    = str_remove(sample, "\\.fcs$"),
-      condition = condition,
-      donor     = donor,
-      beads     = as.numeric(beads),
-      bcg_n     = as.numeric(bcg_n)
-    ) |>
-    separate(sample, into = c("timepoint", "fraction", "carp_moi"), sep = "_") |>
-    mutate(
-      timepoint = as.integer(str_extract(timepoint, "\\d+")),
-      carprofen = as.integer(str_extract(carp_moi, "(?<=C)\\d+")),
-      moi       = as.integer(str_extract(carp_moi, "(?<=B)\\d+"))
-    ) |>
-    select(condition, donor, timepoint, fraction, carprofen, moi, beads, bcg_n)
-}
-
-bcg_raw_all <- bind_rows(lapply(1:6, read_aif))
-
-# Fold change = (7dpi BCG/beads) / (4hpi BCG/beads)
-bcg_fc <- bcg_raw_all |>
-  mutate(norm = bcg_n / beads) |>
-  select(condition, donor, fraction, carprofen, moi, timepoint, norm) |>
-  pivot_wider(names_from = timepoint, values_from = norm,
-              names_prefix = "t") |>
-  mutate(fold_change = t7 / t4) |>
-  filter(!is.na(fold_change))
-
-# Summary
-bcg_summ <- bcg_fc |>
-  group_by(condition, fraction, carprofen, moi) |>
-  summarise(
-    mean_fc = mean(fold_change),
-    sem_fc  = sd(fold_change) / sqrt(n()),
-    vals    = list(fold_change),
-    .groups = "drop"
-  )
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Figure 4 — BCG growth assay (2 rows × 4 MOI columns)
-# ─────────────────────────────────────────────────────────────────────────────
-# Condition colours
-cond_colors <- c("Media only" = "#5B9BD5", "+Carprofen" = "#E06060")
-
-# Factorise
-bcg_fc_plot <- bcg_fc |>
-  mutate(
-    condition  = factor(condition, levels = c("Media only", "+Carprofen")),
-    fraction   = factor(fraction,  levels = c("EC", "IC")),
-    moi_label  = factor(paste("MOI", moi), levels = paste("MOI", c(0, 1, 10, 100))),
-    carp_fac   = factor(carprofen, levels = c(0, 1, 10, 100))
-  )
-
-bcg_summ_plot <- bcg_summ |>
-  mutate(
-    condition  = factor(condition, levels = c("Media only", "+Carprofen")),
-    fraction   = factor(fraction,  levels = c("EC", "IC")),
-    moi_label  = factor(paste("MOI", moi), levels = paste("MOI", c(0, 1, 10, 100))),
-    carp_fac   = factor(carprofen, levels = c(0, 1, 10, 100))
-  )
-
-# Unnest individual points for dot overlay
-bcg_dots <- bcg_summ_plot |>
-  select(condition, fraction, moi_label, carp_fac, vals) |>
-  unnest(vals)
-
-fig4 <- ggplot(bcg_summ_plot,
-               aes(x = carp_fac, y = mean_fc, fill = condition)) +
-  # Bars
-  geom_col(position = position_dodge(width = 0.75),
-           width = 0.65, colour = NA) +
-  # Error bars
-  geom_errorbar(aes(ymin = mean_fc - sem_fc,
-                    ymax = mean_fc + sem_fc),
-                position = position_dodge(width = 0.75),
-                width = 0.25, linewidth = 0.6) +
-  # Individual donor dots
-  geom_point(data = bcg_dots,
-             aes(x = carp_fac, y = vals, fill = condition),
-             position = position_jitterdodge(jitter.width = 0.12,
-                                             dodge.width  = 0.75),
-             shape = 21, size = 1.4, colour = "black",
-             stroke = 0.3, alpha = 0.85) +
-  # Reference line at fold change = 1
-  geom_hline(yintercept = 1, linetype = "dashed",
-             colour = "grey60", linewidth = 0.5) +
-  scale_fill_manual(values = cond_colors, name = NULL) +
-  scale_x_discrete(labels = c("0","1","10","100")) +
-  # Independent y-scale per facet
-  facet_grid(fraction ~ moi_label, scales = "free_y") +
-  labs(x = "Carprofen (µg/mL)",
-       y = "Fold change (normalised to 4 hpi)") +
-  theme_report() +
-  theme(
-    strip.background = element_blank(),
-    strip.text       = element_text(size = 8.5, face = "plain"),
-    legend.position  = "bottom",
-    panel.spacing    = unit(0.5, "lines")
-  )
-
-ggsave("Figure4_BCG_growth_assay.pdf", fig4,
-       width = 7.5, height = 4.8, units = "in")
-ggsave("Figure4_BCG_growth_assay.png", fig4,
-       width = 7.5, height = 4.8, units = "in", dpi = 300)
+ggsave("Figure4_BCG_growth_assay.pdf",
+       fig4, width = 7.5, height = 6.0, units = "in")
+ggsave("Figure4_BCG_growth_assay.png",
+       fig4, width = 7.5, height = 6.0, units = "in", dpi = 300)
 message("Saved Figure 4")
 
-message("\nDone — all 3 figures saved.")
+message("\nDone — Figures 2, 3, 4 saved.")
