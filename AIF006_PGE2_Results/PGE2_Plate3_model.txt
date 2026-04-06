@@ -1,0 +1,29 @@
+Plate: Plate3
+Blank mean: 0.1545
+NSB mean: 0.1545
+B0 mean: 0.7537
+
+4PL Parameters: y = d + (a-d) / (1 + (x/c)^b)
+  a (upper): 94.7463
+  d (lower): -0.0694
+  c (EC50): 102.6441 pg/mL
+  b (slope): 1.0444
+  R-squared: 0.998931
+
+
+Formula: mean_pctBB0 ~ d + (a - d)/(1 + (StdConc/c_val)^b)
+
+Parameters:
+       Estimate Std. Error t value Pr(>|t|)    
+a      94.74629    2.71627  34.881 4.03e-06 ***
+d      -0.06936    3.24735  -0.021 0.983981    
+c_val 102.64413    7.63646  13.441 0.000177 ***
+b       1.04439    0.10305  10.135 0.000534 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 1.35 on 4 degrees of freedom
+
+Number of iterations to convergence: 6 
+Achieved convergence tolerance: 6.311e-07
+
