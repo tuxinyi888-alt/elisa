@@ -1,0 +1,20 @@
+Two-way ANOVA: PGE2 ~ Carprofen * LPS
+========================================
+                  Df Sum Sq Mean Sq F value   Pr(>F)    
+Carprofen_f        3  39972   13324  22.036 4.08e-09 ***
+LPS_f              3   4792    1597   2.642  0.05993 .  
+Carprofen_f:LPS_f  9  18018    2002   3.311  0.00323 ** 
+Residuals         48  29023     605                     
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+
+Two-way ANOVA: PGE2 ~ Carprofen * BCG
+========================================
+                  Df Sum Sq Mean Sq F value  Pr(>F)   
+Carprofen_f        3  14015    4672   5.658 0.00211 **
+BCG_f              3   2941     980   1.187 0.32450   
+Carprofen_f:BCG_f  9   5473     608   0.736 0.67364   
+Residuals         48  39632     826                   
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
