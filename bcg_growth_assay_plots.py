@@ -35,6 +35,7 @@ CARPROFEN_COLOURS = {0: "#2166AC", 1: "#4393C3", 10: "#92C5DE", 100: "#D1E5F0"}
 GROUPS = {
     "Exp1-3": {"files": [1, 2, 3], "label": "Exp 1\u20133"},
     "Exp4-6": {"files": [4, 5, 6], "label": "Exp 4\u20136"},
+    "All":    {"files": [1, 2, 3, 4, 5, 6], "label": "All Experiments"},
 }
 
 
