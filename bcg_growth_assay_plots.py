@@ -4,6 +4,10 @@ BCG Growth Assay: Bar charts of fold change (7dpi / 4hpi)
 in integrated fluorescence (BCG-dsRed Count × Geometric Mean),
 stratified by carprofen dose.
 
+Split into two groups with different experimental conditions:
+  - Exp 1–3 (AIF007-1, -2, -3): n=3
+  - Exp 4–6 (AIF007-4, -5, -6): n=3
+
 Grid layout: rows = MOI (B0, B1, B10, B100),
              columns = compartment (EC, IC).
 X-axis: carprofen dose (0, 1, 10, 100 µg/mL).
@@ -17,7 +21,6 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -29,16 +32,15 @@ CARPROFEN_LABELS = ["C0", "C1", "C10", "C100"]
 COMPARTMENTS = ["EC", "IC"]
 COMP_LABELS = {"EC": "Extracellular", "IC": "Intracellular"}
 CARPROFEN_COLOURS = {0: "#2166AC", 1: "#4393C3", 10: "#92C5DE", 100: "#D1E5F0"}
-DONOR_FILES = [f"AIF007-{i}_Table.xls" for i in range(1, 7)]
+
+# Two experimental groups
+GROUPS = {
+    "Exp1-3": {"files": [1, 2, 3], "label": "Exp 1–3"},
+    "Exp4-6": {"files": [4, 5, 6], "label": "Exp 4–6"},
+}
 
 
 # ── Parse helpers ──────────────────────────────────────────────────────────
-def parse_pct(val):
-    if isinstance(val, str):
-        return float(val.replace("%", "").strip())
-    return float(val)
-
-
 def parse_filename(fname):
     m = re.match(r"(\w+)_(EC|IC)_C(\d+)B(\d+)\.fcs", str(fname))
     if not m:
@@ -53,13 +55,12 @@ def parse_filename(fname):
 
 # ── Load all donors ───────────────────────────────────────────────────────
 all_rows = []
-for donor_idx, fname in enumerate(DONOR_FILES, start=1):
-    fpath = os.path.join(BASE, fname)
+for donor_idx in range(1, 7):
+    fpath = os.path.join(BASE, f"AIF007-{donor_idx}_Table.xls")
     if not os.path.exists(fpath):
-        print(f"  Warning: {fname} not found, skipping.")
+        print(f"  Warning: AIF007-{donor_idx}_Table.xls not found, skipping.")
         continue
     df = pd.read_excel(fpath)
-    # Exclude Mean/SD summary rows
     df = df[~df.iloc[:, 0].isin(["Mean", "SD"])]
 
     for _, row in df.iterrows():
@@ -73,53 +74,52 @@ for donor_idx, fname in enumerate(DONOR_FILES, start=1):
             gmean = float(gmean)
         except (ValueError, TypeError):
             continue
-        integrated = count * gmean
         parsed["donor"] = f"D{donor_idx}"
-        parsed["integrated_fluor"] = integrated
+        parsed["exp_num"] = donor_idx
+        parsed["integrated_fluor"] = count * gmean
         all_rows.append(parsed)
 
 data = pd.DataFrame(all_rows)
-print(f"Loaded {len(data)} observations from {len(DONOR_FILES)} donors.")
+print(f"Loaded {len(data)} observations from {data['donor'].nunique()} donors.")
 
-# ── Compute FC = 7dpi / 4hpi for each (donor, compartment, carprofen, moi) ─
+# ── Compute FC = 7dpi / 4hpi ─────────────────────────────────────────────
 fc_rows = []
 for donor in data["donor"].unique():
+    exp_num = data[data["donor"] == donor]["exp_num"].iloc[0]
     for comp in COMPARTMENTS:
         for carp in CARPROFEN_DOSES:
             for moi in MOIS:
-                mask_base = (
+                mask = (
                     (data["donor"] == donor)
                     & (data["compartment"] == comp)
                     & (data["carprofen"] == carp)
                     & (data["moi"] == moi)
                 )
-                v4h = data[mask_base & (data["timepoint"] == "4hpi")]
-                v7d = data[mask_base & (data["timepoint"] == "7dpi")]
+                v4h = data[mask & (data["timepoint"] == "4hpi")]
+                v7d = data[mask & (data["timepoint"] == "7dpi")]
                 if len(v4h) == 1 and len(v7d) == 1:
                     val_4h = v4h["integrated_fluor"].values[0]
                     val_7d = v7d["integrated_fluor"].values[0]
-                    if val_4h > 0:
-                        fc = val_7d / val_4h
-                    else:
-                        fc = np.nan
+                    fc = val_7d / val_4h if val_4h > 0 else np.nan
                     fc_rows.append({
                         "donor": donor,
+                        "exp_num": exp_num,
                         "compartment": comp,
                         "carprofen": carp,
                         "moi": moi,
                         "fc": fc,
                     })
 
-fc_data = pd.DataFrame(fc_rows)
-fc_data = fc_data.dropna(subset=["fc"])
-print(f"Computed {len(fc_data)} fold-change values.")
+fc_all = pd.DataFrame(fc_rows).dropna(subset=["fc"])
+print(f"Computed {len(fc_all)} fold-change values total.")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Plot A: Facet grid — rows = MOI, columns = Compartment (bar charts)
+# Plotting functions (operate on a subset of fc_data)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def make_facet_grid_bars():
+def make_facet_grid_bars(fc_data, group_label, file_suffix):
+    """4×2 facet grid with bar charts (rows=MOI, cols=compartment)."""
     fig, axes = plt.subplots(
         len(MOIS), len(COMPARTMENTS),
         figsize=(8, 14),
@@ -128,21 +128,20 @@ def make_facet_grid_bars():
 
     bar_width = 0.6
     x_positions = np.arange(len(CARPROFEN_DOSES))
+    n_donors = fc_data["donor"].nunique()
 
     for row_idx, moi in enumerate(MOIS):
         for col_idx, comp in enumerate(COMPARTMENTS):
             ax = axes[row_idx, col_idx]
             subset = fc_data[(fc_data["moi"] == moi) & (fc_data["compartment"] == comp)]
 
-            means = []
-            sems = []
+            means, sems = [], []
             for carp in CARPROFEN_DOSES:
                 grp = subset[subset["carprofen"] == carp]["fc"]
                 means.append(grp.mean() if len(grp) > 0 else 0)
                 sems.append(grp.sem() if len(grp) > 1 else 0)
 
-            # Bars
-            bars = ax.bar(
+            ax.bar(
                 x_positions, means, bar_width,
                 yerr=sems, capsize=4,
                 color=[CARPROFEN_COLOURS[d] for d in CARPROFEN_DOSES],
@@ -169,53 +168,45 @@ def make_facet_grid_bars():
             ax.spines["right"].set_visible(False)
             ax.tick_params(labelsize=10)
 
-            # Column titles (top row only)
             if row_idx == 0:
                 ax.set_title(COMP_LABELS[comp], fontsize=13, fontweight="bold")
-            # Row labels (left column only)
             if col_idx == 0:
                 ax.set_ylabel(
                     f"FC (7d/4h)\n{MOI_LABELS[row_idx]}",
                     fontsize=11, fontweight="bold",
                 )
-            # X-axis label (bottom row only)
             if row_idx == len(MOIS) - 1:
                 ax.set_xlabel("Carprofen dose (µg/mL)", fontsize=11)
 
-    n_donors = fc_data["donor"].nunique()
     fig.suptitle(
-        f"BCG Growth Assay — Fold Change (Integrated Fluorescence, 7d/4h)\n"
-        f"Mean ± SEM | n={n_donors} donors",
+        f"BCG Growth Assay — {group_label}\n"
+        f"Fold Change (Integrated Fluorescence, 7d/4h) | Mean ± SEM | n={n_donors}",
         fontsize=14, fontweight="bold",
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
-    fname = "BCG_growth_FC_facet_grid.png"
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    fname = f"BCG_growth_FC_facet_grid_{file_suffix}.png"
     fig.savefig(os.path.join(BASE, fname), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"  Saved {fname}")
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Plot B: Same grid but with continuous x-axis (carprofen as numeric)
-# ═══════════════════════════════════════════════════════════════════════════
-
-def make_facet_grid_continuous():
+def make_facet_grid_continuous(fc_data, group_label, file_suffix):
+    """4×2 facet grid with connected mean ± SEM lines."""
     fig, axes = plt.subplots(
         len(MOIS), len(COMPARTMENTS),
         figsize=(8, 14),
         sharey="row", sharex=True,
     )
 
-    # Evenly-spaced x for carprofen doses
     CARP_POS = {0: 0, 1: 1, 10: 2, 100: 3}
     JITTER_SCALE = 0.08
+    n_donors = fc_data["donor"].nunique()
 
     for row_idx, moi in enumerate(MOIS):
         for col_idx, comp in enumerate(COMPARTMENTS):
             ax = axes[row_idx, col_idx]
             subset = fc_data[(fc_data["moi"] == moi) & (fc_data["compartment"] == comp)]
 
-            # Summary stats
             summary = subset.groupby("carprofen")["fc"].agg(["mean", "sem"])
             summary = summary.reindex(CARPROFEN_DOSES)
             valid = summary.dropna(subset=["mean"])
@@ -229,7 +220,6 @@ def make_facet_grid_continuous():
                     zorder=4,
                 )
 
-            # Individual donor points
             for carp in CARPROFEN_DOSES:
                 grp = subset[subset["carprofen"] == carp]["fc"]
                 if len(grp) > 0:
@@ -259,24 +249,22 @@ def make_facet_grid_continuous():
             if row_idx == len(MOIS) - 1:
                 ax.set_xlabel("Carprofen dose (µg/mL)", fontsize=11)
 
-    n_donors = fc_data["donor"].nunique()
     fig.suptitle(
-        f"BCG Growth Assay — Fold Change (Integrated Fluorescence, 7d/4h)\n"
-        f"Mean ± SEM | n={n_donors} donors",
+        f"BCG Growth Assay — {group_label}\n"
+        f"Fold Change (Integrated Fluorescence, 7d/4h) | Mean ± SEM | n={n_donors}",
         fontsize=14, fontweight="bold",
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
-    fname = "BCG_growth_FC_continuous.png"
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    fname = f"BCG_growth_FC_continuous_{file_suffix}.png"
     fig.savefig(os.path.join(BASE, fname), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"  Saved {fname}")
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Plot C: Individual panels per MOI (EC and IC side by side)
-# ═══════════════════════════════════════════════════════════════════════════
+def make_individual_moi_panels(fc_data, group_label, file_suffix):
+    """One figure per MOI with EC and IC side by side."""
+    n_donors = fc_data["donor"].nunique()
 
-def make_individual_moi_panels():
     for moi_idx, moi in enumerate(MOIS):
         fig, axes = plt.subplots(1, 2, figsize=(10, 5), sharey=True)
         bar_width = 0.6
@@ -286,14 +274,13 @@ def make_individual_moi_panels():
             ax = axes[col_idx]
             subset = fc_data[(fc_data["moi"] == moi) & (fc_data["compartment"] == comp)]
 
-            means = []
-            sems = []
+            means, sems = [], []
             for carp in CARPROFEN_DOSES:
                 grp = subset[subset["carprofen"] == carp]["fc"]
                 means.append(grp.mean() if len(grp) > 0 else 0)
                 sems.append(grp.sem() if len(grp) > 1 else 0)
 
-            bars = ax.bar(
+            ax.bar(
                 x_positions, means, bar_width,
                 yerr=sems, capsize=4,
                 color=[CARPROFEN_COLOURS[d] for d in CARPROFEN_DOSES],
@@ -325,21 +312,36 @@ def make_individual_moi_panels():
                 ax.set_ylabel("FC (Integrated Fluorescence, 7d/4h)",
                               fontsize=11, fontweight="bold")
 
-        n_donors = fc_data["donor"].nunique()
         fig.suptitle(
-            f"BCG Growth Assay — {MOI_LABELS[moi_idx]} | Mean ± SEM | n={n_donors}",
+            f"BCG Growth Assay — {group_label} — {MOI_LABELS[moi_idx]}\n"
+            f"Mean ± SEM | n={n_donors}",
             fontsize=14, fontweight="bold",
         )
-        fig.tight_layout(rect=[0, 0, 1, 0.93])
-        fname = f"BCG_growth_FC_{MOI_LABELS[moi_idx]}.png"
+        fig.tight_layout(rect=[0, 0, 1, 0.90])
+        fname = f"BCG_growth_FC_{MOI_LABELS[moi_idx]}_{file_suffix}.png"
         fig.savefig(os.path.join(BASE, fname), dpi=300, bbox_inches="tight")
         plt.close(fig)
         print(f"  Saved {fname}")
 
 
-# ── Run ───────────────────────────────────────────────────────────────────
-print("\nGenerating plots...")
-make_facet_grid_bars()
-make_facet_grid_continuous()
-make_individual_moi_panels()
+# ═══════════════════════════════════════════════════════════════════════════
+# Run for each group
+# ═══════════════════════════════════════════════════════════════════════════
+for grp_key, grp_cfg in GROUPS.items():
+    exp_nums = grp_cfg["files"]
+    label = grp_cfg["label"]
+    fc_subset = fc_all[fc_all["exp_num"].isin(exp_nums)]
+
+    donors_in = sorted(fc_subset["donor"].unique())
+    n = len(donors_in)
+    print(f"\n{'='*60}")
+    print(f"  {label} — donors: {', '.join(donors_in)} (n={n})")
+    print(f"  FC values: {len(fc_subset)}")
+    print(f"{'='*60}")
+
+    print(f"\nGenerating plots for {label}...")
+    make_facet_grid_bars(fc_subset, label, grp_key)
+    make_facet_grid_continuous(fc_subset, label, grp_key)
+    make_individual_moi_panels(fc_subset, label, grp_key)
+
 print("\nDone.")
