@@ -15,6 +15,9 @@
 #   and uncomment the four lines marked "## PGE2" below.
 # ==============================================================================
 
+# Set working directory to the folder containing this script (RStudio only)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
 library(readxl)
 library(dplyr)
 library(ggplot2)
